@@ -43,7 +43,7 @@ def root():
 
 @app.get("/health")
 def health():
-    """Health check for Render deployment monitoring."""
+    """Health check for Railway/Render deployment monitoring."""
     return {"status": "alive"}
 
 
@@ -54,18 +54,37 @@ async def predict_email(req: EmailRequest):
     Receives email text → returns full analysis.
     """
 
-    # Validate input
+    # Validate input — empty check
     if not req.email_text.strip():
         raise HTTPException(
             status_code = 400,
             detail      = "Email text cannot be empty"
         )
 
+    # Validate input — too long check
     if len(req.email_text) > 50000:
         raise HTTPException(
             status_code = 400,
             detail      = "Email too long — max 50,000 characters"
         )
+
+    # Too short to analyse reliably — return early
+    # Model needs enough context to make a meaningful prediction
+    if len(req.email_text.strip().split()) < 5:
+        return {
+            "is_spam"          : False,
+            "verdict"          : "INCONCLUSIVE",
+            "confidence"       : 0,
+            "personality_type" : "clean_email",
+            "personality_name" : "Too Short To Tell",
+            "personality_desc" : "Not enough text to analyse. Provide more context.",
+            "roast"            : "Five words or fewer. The model respectfully declines to speculate.",
+            "gif_url"          : None,
+            "flagged_words"    : [],
+            "links_found"      : [],
+            "threat_scores"    : {},
+            "user_can_override": True
+        }
 
     # Get model prediction
     result = predict(req.email_text)
