@@ -131,12 +131,12 @@ ROASTS = {
         "Confidence: high. Legitimacy: low.",
     ],
     "clean_email": [
-        "Nothing suspicious detected. Rare, but it happens.",
         "Cleared for landing.",
         "The model finds no cause for alarm. Proceed with reasonable caution.",
         "Against all odds, this one seems fine.",
         "No red flags detected. The bar was low but this clears it.",
         "Statistically, some emails are legitimate. This appears to be one.",
+        "Nothing flagged. Either genuine or very well written spam.",
     ],
 }
 
@@ -173,11 +173,21 @@ def extract_flagged_words(text: str) -> list:
 
 def compute_threat_scores(text: str) -> dict:
     """Returns 4 threat sub-scores as percentages."""
-    words      = text.lower().split()
-    total      = max(len(words), 1)
+    words = text.lower().split()
+    total = max(len(words), 1)
 
-    urgency_kw = ["urgent", "now", "immediately", "expires", "limited", "final", "act"]
-    scam_kw    = ["free", "win", "prize", "money", "cash", "million", "guaranteed"]
+    urgency_kw = [
+        "urgent", "now", "immediately", "expires",
+        "limited", "final", "act", "hurry", "deadline"
+    ]
+
+    # ✅ FIXED — matches flagged_words lexicon so scores are consistent
+    scam_kw = [
+        "free", "win", "winner", "prize", "money", "cash",
+        "million", "guaranteed", "congratulations", "selected",
+        "inheritance", "transfer", "loan", "credit", "offer",
+        "discount", "deal", "save"
+    ]
 
     urgency = round(min(
         sum(1 for w in words if w in urgency_kw) / total * 500, 100
@@ -185,7 +195,7 @@ def compute_threat_scores(text: str) -> dict:
     scam = round(min(
         sum(1 for w in words if w in scam_kw) / total * 500, 100
     ))
-    caps  = round(min(
+    caps = round(min(
         sum(1 for c in text if c.isupper()) / max(len(text), 1) * 300, 100
     ))
     links = min(len(extract_links(text)) * 25, 100)
@@ -203,18 +213,18 @@ async def get_gif(search_term: str):
     try:
         key = os.getenv("GIPHY_API_KEY", "")
 
-        # Skip if no key set yet
+        # Skip if no key set
         if not key or key == "your_giphy_key_here":
             return None
 
-        async with httpx.AsyncClient(timeout=3.0) as client:
+        async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
                 "https://api.giphy.com/v1/gifs/search",
                 params={
                     "api_key": key,
                     "q"      : search_term,
-                    "limit"  : 10,        # get 10 options
-                    "rating" : "pg"       # keep it clean
+                    "limit"  : 10,
+                    "rating" : "pg"
                 }
             )
 
@@ -228,7 +238,7 @@ async def get_gif(search_term: str):
         return chosen["images"]["original"]["url"]
 
     except Exception:
-        # If GIPHY fails, just return None — don't crash the app
+        # ✅ FIXED — Giphy failure never crashes the app
         return None
 
 
@@ -249,9 +259,15 @@ async def enrich(text: str, is_spam: bool) -> dict:
     else:
         # Detect which spam personality this is
         personality_key  = detect_personality(text)
+
+        # ✅ FIXED — fallback no longer uses link_goblin data for general_spam
         personality_data = PERSONALITIES.get(
             personality_key,
-            PERSONALITIES["link_goblin"]
+            {
+                "name" : "Suspicious Character",
+                "desc" : "Flagged by the model. No specific personality matched.",
+                "giphy": "suspicious"
+            }
         )
 
     # Pick random roast from the pool
@@ -259,7 +275,7 @@ async def enrich(text: str, is_spam: bool) -> dict:
         ROASTS.get(personality_key, ROASTS["general_spam"])
     )
 
-    # Fetch GIF from GIPHY
+    # Fetch GIF from GIPHY — safe, never crashes
     gif_url = await get_gif(personality_data["giphy"])
 
     return {
