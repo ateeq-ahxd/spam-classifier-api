@@ -3,7 +3,7 @@ name = "spam-classifier-api"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.136.0",
     "httpx>=0.28.1",
@@ -13,4 +13,6 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "scikit-learn>=1.8.0",
     "uvicorn>=0.44.0",
+    "joblib>=1.5.3",
+    "gdown",
 ]
