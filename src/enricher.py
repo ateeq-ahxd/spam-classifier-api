@@ -181,7 +181,6 @@ def compute_threat_scores(text: str) -> dict:
         "limited", "final", "act", "hurry", "deadline"
     ]
 
-    # ✅ FIXED — matches flagged_words lexicon so scores are consistent
     scam_kw = [
         "free", "win", "winner", "prize", "money", "cash",
         "million", "guaranteed", "congratulations", "selected",
@@ -206,6 +205,71 @@ def compute_threat_scores(text: str) -> dict:
         "caps_abuse"       : caps,
         "suspicious_links" : links
     }
+
+
+def compute_spam_score(confidence: float, threat_scores: dict) -> int:
+    """
+    Combines model confidence + threat scores into one
+    overall spam score 0-100. Used for the frontend gauge/dial.
+
+    Weight breakdown:
+    - 60% model confidence  (the ML model's opinion)
+    - 40% threat signals    (rule-based signals we computed)
+    """
+    threat_avg = sum(threat_scores.values()) / max(len(threat_scores), 1)
+    score      = (confidence * 0.6) + (threat_avg * 0.4)
+    return round(min(score, 100))
+
+
+def compute_severity(confidence: float) -> str:
+    """
+    Converts confidence % into a human-readable severity level.
+    Frontend can use this to colour code the result card.
+
+    HIGH   → red
+    MEDIUM → orange
+    LOW    → yellow
+    SAFE   → green
+    """
+    if confidence >= 90:
+        return "HIGH"
+    elif confidence >= 70:
+        return "MEDIUM"
+    elif confidence >= 50:
+        return "LOW"
+    else:
+        return "SAFE"
+
+
+def compute_top_reason(threat_scores: dict, flagged_words: list, links: list) -> str:
+    """
+    Returns one clear sentence explaining the biggest red flag.
+    Shown prominently on the frontend — the 'why' behind the verdict.
+    """
+
+    # Find which threat score is highest
+    if not threat_scores:
+        return "No specific threat signals detected."
+
+    top_signal = max(threat_scores, key=threat_scores.get)
+    top_value  = threat_scores[top_signal]
+
+    # Map signal name to a human readable reason
+    reasons = {
+        "caps_abuse"       : f"Excessive capitalisation detected — {top_value}% of text is uppercase.",
+        "urgency_signals"  : f"High urgency language detected — pressure tactics score {top_value}%.",
+        "scam_words"       : f"Known scam vocabulary found — scam word density {top_value}%.",
+        "suspicious_links" : f"Suspicious URLs present — link threat score {top_value}%.",
+    }
+
+    base_reason = reasons.get(top_signal, "Multiple spam signals detected.")
+
+    # Add flagged words context if available
+    if flagged_words:
+        sample = ", ".join(flagged_words[:3])
+        base_reason += f" Key terms: {sample}."
+
+    return base_reason
 
 
 async def get_gif(search_term: str):
@@ -238,18 +302,17 @@ async def get_gif(search_term: str):
         return chosen["images"]["original"]["url"]
 
     except Exception:
-        # ✅ FIXED — Giphy failure never crashes the app
+        # Giphy failure never crashes the app
         return None
 
 
-async def enrich(text: str, is_spam: bool) -> dict:
+async def enrich(text: str, is_spam: bool, confidence: float = 0.0) -> dict:
     """
     Main enrichment function.
     Builds the full rich response on top of the model prediction.
     """
 
     if not is_spam:
-        # Clean email — different personality and roast pool
         personality_key  = "clean_email"
         personality_data = {
             "name" : "Looks Legit",
@@ -257,10 +320,7 @@ async def enrich(text: str, is_spam: bool) -> dict:
             "giphy": "thumbs up all good"
         }
     else:
-        # Detect which spam personality this is
         personality_key  = detect_personality(text)
-
-        # ✅ FIXED — fallback no longer uses link_goblin data for general_spam
         personality_data = PERSONALITIES.get(
             personality_key,
             {
@@ -278,14 +338,28 @@ async def enrich(text: str, is_spam: bool) -> dict:
     # Fetch GIF from GIPHY — safe, never crashes
     gif_url = await get_gif(personality_data["giphy"])
 
+    # Compute all analysis fields
+    flagged  = extract_flagged_words(text) if is_spam else []
+    links    = extract_links(text)
+    threats  = compute_threat_scores(text) if is_spam else {}
+
+    # ✅ NEW — spam score, severity, top reason
+    spam_score  = compute_spam_score(confidence, threats) if is_spam else 0
+    severity    = compute_severity(confidence) if is_spam else "SAFE"
+    top_reason  = compute_top_reason(threats, flagged, links) if is_spam else "No threats detected."
+
     return {
         "personality_type" : personality_key,
         "personality_name" : personality_data["name"],
         "personality_desc" : personality_data["desc"],
         "roast"            : roast,
         "gif_url"          : gif_url,
-        "flagged_words"    : extract_flagged_words(text) if is_spam else [],
-        "links_found"      : extract_links(text),
-        "threat_scores"    : compute_threat_scores(text) if is_spam else {},
-        "user_can_override": True
+        "flagged_words"    : flagged,
+        "links_found"      : links,
+        "threat_scores"    : threats,
+
+        # ✅ NEW fields for visualization
+        "spam_score"       : spam_score,   # 0-100 overall score → use for gauge chart
+        "severity"         : severity,     # SAFE/LOW/MEDIUM/HIGH → use for color coding
+        "top_reason"       : top_reason,   # one sentence → show prominently on UI
     }

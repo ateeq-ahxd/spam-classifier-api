@@ -90,7 +90,7 @@ async def predict_email(req: EmailRequest):
     result = predict(req.email_text)
 
     # Get enriched response (personality, roast, GIF etc.)
-    extras = await enrich(req.email_text, result["is_spam"])
+    extras = await enrich(req.email_text, result["is_spam"], result["confidence"])
 
     # Merge and return everything
     return {**result, **extras}
