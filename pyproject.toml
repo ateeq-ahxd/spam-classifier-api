@@ -1,0 +1,16 @@
+[project]
+name = "spam-classifier-api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.136.0",
+    "httpx>=0.28.1",
+    "nltk>=3.9.4",
+    "numpy>=2.4.4",
+    "pandas>=3.0.2",
+    "python-dotenv>=1.2.2",
+    "scikit-learn>=1.8.0",
+    "uvicorn>=0.44.0",
+]
