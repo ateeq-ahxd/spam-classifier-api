@@ -1,113 +1,144 @@
-# 🛡️ Spam Classifier API
+# Spam Classifier API
 
-> A fun, intelligent spam detection API built with FastAPI and Machine Learning.
-> Not just "spam or not" — it roasts the email, gives it a personality, and
-> tells you exactly why it's suspicious. Built as a portfolio project.
+A production-ready spam detection API built with FastAPI and Scikit-learn. Accepts raw email text and returns a classification verdict, confidence score, threat signal breakdown, and flagged trigger words — all over a clean REST interface.
 
----
-
-## ✨ Features
-
-- 🧠 **ML-powered** spam detection using TF-IDF + Scikit-learn
-- 😂 **Spam Personalities** — Nigerian Prince, Urgent Larry, Link Goblin & more
-- 🔥 **Roast Mode** — savage one-liner about why the email is sus
-- 📊 **Threat Breakdown** — scam words, urgency signals, caps abuse, suspicious links
-- 🎭 **Reaction GIFs** — powered by Giphy API
-- 🚩 **Flagged Words** — exact words that triggered the model
-- ✅ **User Override** — because models aren't always right
+Live: `spam-classifier-api-production-b951.up.railway.app`  
+Docs: `spam-classifier-api-production-b951.up.railway.app/docs`
 
 ---
 
-## 🚀 Live API
+## Overview
 
-spam-classifier-api-production-b951.up.railway.app
-
-Full interactive docs:
+This project was built as part of a capstone in data analytics and extended into a deployable API. The classifier uses a TF-IDF vectorizer paired with an SVM model trained on a labelled email dataset. The API wraps the model with additional signal analysis — urgency detection, caps abuse scoring, suspicious link presence — to give a richer picture of why an email was flagged, not just whether it was.
 
 ---
 
-## 📡 API Usage
+## Features
 
-### POST /predict
+- **ML classification** — TF-IDF + SVM pipeline, serialised with joblib and loaded at startup
+- **Confidence scoring** — probability output alongside the binary verdict
+- **Threat signal breakdown** — scam keyword density, urgency signal count, caps ratio, suspicious link detection
+- **Flagged word extraction** — exact tokens that contributed to the classification
+- **User override** — endpoint accepts a correction flag for downstream feedback loops
+- **GIF response layer** — optional Giphy integration for client-facing UI (can be disabled)
 
-**Request:**
+---
+
+## API Reference
+
+### `POST /predict`
+
+Classifies a single email as spam or legitimate.
+
+**Request**
 ```json
 {
   "email_text": "CONGRATULATIONS! You have WON $1,000,000! Click NOW!"
 }
 ```
 
-**Response:**
+**Response**
 ```json
 {
   "verdict": "SPAM",
   "confidence": 97.4,
-  "personality_name": "Urgent Larry",
-  "personality_desc": "Everything is on fire. Reply NOW or lose everything.",
-  "roast": "The countdown timer exists only in your imagination.",
-  "gif_url": "https://media.giphy.com/...",
   "flagged_words": ["CONGRATULATIONS", "WON", "Click NOW"],
-  "links_found": [],
   "threat_scores": {
     "scam_words": 88,
     "urgency_signals": 91,
     "caps_abuse": 75,
     "suspicious_links": 0
   },
+  "links_found": [],
   "user_can_override": true
 }
 ```
 
+| Field | Type | Description |
+|---|---|---|
+| `verdict` | string | `SPAM` or `HAM` |
+| `confidence` | float | Model confidence as a percentage |
+| `flagged_words` | array | Tokens that triggered classification |
+| `threat_scores` | object | Per-signal scores, 0–100 |
+| `user_can_override` | bool | Whether the client can submit a correction |
+
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| API Framework | FastAPI |
-| ML Model | Scikit-learn (Naive Bayes / SVM) |
-| Text Processing | NLTK + TF-IDF |
-| GIF Integration | Giphy API |
-| Deployment | Railway | Render
-| Language | Python 3.14 |
+| API framework | FastAPI |
+| ML model | Scikit-learn — SVM |
+| Text processing | TF-IDF vectorizer, NLTK |
+| Serialisation | joblib |
+| GIF integration | Giphy API (optional) |
+| Deployment | Railway |
+| Language | Python 3.11+ |
 
 ---
 
-## 🏃 Run Locally
+## Running Locally
+
+**Prerequisites:** Python 3.11+, pip
 
 ```bash
-# Clone the repo
 git clone https://github.com/ateeq-ahxd/spam-classifier-api.git
 cd spam-classifier-api
 
-# Install dependencies
 pip install -r requirements.txt
 
-# Create .env file
 cp .env.example .env
-# Fill in your API keys
+# Add your API keys to .env
 
-# Run the server
 uvicorn main:app --reload
 ```
 
-Then open: http://127.0.0.1:8000/docs
+Interactive docs available at `http://127.0.0.1:8000/docs`
 
 ---
 
-## 🔐 Environment Variables
+## Environment Variables
 
 | Variable | Description |
 |---|---|
-| `GIPHY_API_KEY` | Your Giphy API key |
-| `MODEL_PATH` | Path to spam model pkl file |
-| `TFIDF_PATH` | Path to TF-IDF vectorizer pkl file |
-| `MODEL_GDRIVE_ID` | Google Drive ID for model file |
-| `TFIDF_GDRIVE_ID` | Google Drive ID for vectorizer file |
+| `GIPHY_API_KEY` | Giphy API key for GIF responses |
+| `MODEL_PATH` | Local path to the trained model `.pkl` |
+| `TFIDF_PATH` | Local path to the TF-IDF vectorizer `.pkl` |
+| `MODEL_GDRIVE_ID` | Google Drive file ID — used if model is hosted remotely |
+| `TFIDF_GDRIVE_ID` | Google Drive file ID — used if vectorizer is hosted remotely |
 
 ---
 
-## 👨‍💻 Author
+## Model Performance
 
-Built as a first portfolio project
-⭐ Star this repo if you found it useful!
+Evaluated on a held-out test set of 1,115 emails.
+
+| Metric | Score |
+|---|---|
+| Accuracy | 99.5% |
+| Spam Precision | 97.3% |
+| Spam Recall | 98.6% |
+| F1-Score | 97.9% |
+
+Confusion matrix: 965 true ham, 144 true spam, 4 false positives, 2 false negatives.
+
+---
+
+## Project Background
+
+Built as a capstone project for a data analytics programme and extended into a fully deployed API. The core model was developed collaboratively by a six-person team (Team 404). The API layer, deployment, and additional signal analysis were built independently as a portfolio extension.
+
+---
+
+## Roadmap
+
+- [ ] Batch prediction endpoint — classify multiple emails per request
+- [ ] SHAP integration — token-level explanation of model decisions
+- [ ] Multi-language support — extend beyond English training data
+- [ ] Feedback loop — store user overrides to retrain on corrections
+- [ ] Gmail / Outlook plugin — real inbox integration
+
+---
+
+*Built by Ateeq — open to feedback and contributions.*
